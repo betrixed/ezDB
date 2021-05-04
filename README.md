@@ -1,5 +1,8 @@
 # ezDB
 
+
+Adding things I found useful in both ActiveRecord and Phalcon.
+
 [![Latest Version on Packagist][ico-version]][link-packagist]
 [![Total Downloads][ico-downloads]][link-downloads]
 [![ezDB Tests][ico-tests]][link-tests]
