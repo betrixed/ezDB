@@ -101,4 +101,12 @@ interface DriverInterface
      * @return \TS\ezDB\Query\Processor\Processor
      */
     public function getProcessor();
+    
+    
+    /**
+     * List of accessible tables by name
+     * @return array
+     */
+    
+    public function getTableNames() : array;
 }

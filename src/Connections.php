@@ -23,7 +23,8 @@ class Connections
     /**
      * @var Connection[] A list of all active connections
      */
-    protected static $connections;
+    protected static $connections = [];
+    protected static $alias = [];
 
     /**
      * @param DatabaseConfig $databaseConfig
@@ -36,6 +37,9 @@ class Connections
         return static::$connections[$name];
     }
 
+    public static function addAlias(string $alias, string $name) {
+        static::$alias[$alias] = $name;
+    }
     /**
      * Get connection by name
      * @param string $name
@@ -43,11 +47,17 @@ class Connections
      * @throws ConnectionException
      */
     public static function connection(string $name = "default")
-    {
-        if (!isset(static::$connections[$name])) {
+    {   
+        $conn = static::$connections[$name] ?? null;
+        if ($conn === null) {
+            $alias = static::$alias[$name] ?? null;
+            if ($alias !== null) {
+                $conn = static::$connections[$alias] ?? null;
+            }
+        }
+        if ($conn === null) {
             throw new ConnectionException("Connection $name not found.");
         }
-
-        return static::$connections[$name];
+        return $conn;
     }
 }

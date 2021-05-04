@@ -82,7 +82,7 @@ class DatabaseConfig
         } elseif ($required === false) {
             return $default;
         } else {
-            throw new ConnectionException("Config $key is required but is not provided.");
+            throw new ConnectionException("Config key '$key' is required but is not provided.");
         }
     }
 

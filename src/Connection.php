@@ -13,6 +13,7 @@ use TS\ezDB\Drivers\MySQLiDriver;
 use TS\ezDB\Drivers\PDODriver;
 use TS\ezDB\Exceptions\ConnectionException;
 use TS\ezDB\Interfaces\DriverInterface;
+use TS\ezDB\Drivers\Plug\Mysql;
 
 class Connection
 {
@@ -56,6 +57,8 @@ class Connection
 
         switch ($this->databaseConfig->getDriver()) {
             case "mysql":
+                $this->driver = new Mysql($this->databaseConfig, $processor);
+                break;
             case "pgsql":
                 $this->driver = new PDODriver($this->databaseConfig, $processor);
                 break;
@@ -147,6 +150,13 @@ class Connection
         return $this->databaseConfig->getBuilderClass();
     }
 
+    /** Return type of underlying database
+     *  currently the DatabaseConfig 'driver'
+     */
+    public function getType() 
+    {
+        return $this->databaseConfig->getDriver();
+    }
     /**
      * Check if the connection is already open.
      * @return bool
@@ -271,5 +281,14 @@ class Connection
         } else { //If not just execute and return the closure.
             return $callback($this);
         }
+    }
+    
+        /**
+     * Returns all tables for the current database.
+     *
+     * @return array Array containing table names.
+     */
+    public function getTableNames() {
+        return $this->driver->getTableNames();
     }
 }

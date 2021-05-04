@@ -1,4 +1,5 @@
 <?php
+
 /*
  * Copyright (c) 2021 - Terminus Studio (https://Terminus.Studio)
  *
@@ -17,8 +18,12 @@ use TS\ezDB\Exceptions\DriverException;
 use TS\ezDB\Interfaces\DriverInterface;
 use TS\ezDB\Query\Processor\Processor;
 
-class PDODriver implements DriverInterface
-{
+class PDODriver implements DriverInterface {
+
+    protected $logging = false;
+    
+    
+    protected $lastsql;
     /**
      * @var PDO
      */
@@ -37,23 +42,29 @@ class PDODriver implements DriverInterface
     /**
      * @inheritDoc
      */
-    public function __construct(DatabaseConfig $databaseConfig, Processor $processor)
-    {
+    public function __construct(DatabaseConfig $databaseConfig, Processor $processor) {
         $this->databaseConfig = $databaseConfig;
         $this->processor = $processor;
+    }
+
+    /*     * *
+     *  variant pdo database types can implement this
+     */
+
+    protected function after_connect() {
+        
     }
 
     /**
      * @inheritDoc
      */
-    public function connect()
-    {
+    public function connect() {
         try {
             $serverName = sprintf(
-                '%s:host=%s;dbname=%s',
-                $this->databaseConfig->getDriver(),
-                $this->databaseConfig->getHost(),
-                $this->databaseConfig->getDatabase()
+                    '%s:host=%s;dbname=%s',
+                    $this->databaseConfig->getDriver(),
+                    $this->databaseConfig->getHost(),
+                    $this->databaseConfig->getDatabase()
             );
 
             $options = array(
@@ -62,20 +73,21 @@ class PDODriver implements DriverInterface
 
             if ($this->databaseConfig->getDriver() == 'mysql') {
                 $options[PDO::MYSQL_ATTR_INIT_COMMAND] = sprintf(
-                    'SET NAMES %s COLLATE %s',
-                    $this->databaseConfig->getCharset(),
-                    $this->databaseConfig->getCollation()
+                        'SET NAMES %s COLLATE %s',
+                        $this->databaseConfig->getCharset(),
+                        $this->databaseConfig->getCollation()
                 );
             } elseif ($this->databaseConfig->getDriver() == 'pgsql') {
                 $serverName .= sprintf(";options='--client_encoding=%s'", $this->databaseConfig->getCharset());
             }
 
             $this->handle = new PDO(
-                $serverName,
-                $this->databaseConfig->getUsername(),
-                $this->databaseConfig->getPassword(),
-                $options
+                    $serverName,
+                    $this->databaseConfig->getUsername(),
+                    $this->databaseConfig->getPassword(),
+                    $options
             );
+            $this->after_connect();
 
             return true;
         } catch (PDOException $e) {
@@ -88,10 +100,10 @@ class PDODriver implements DriverInterface
      * @inheritDoc
      * @return PDO
      */
-    public function handle()
-    {
+    public function handle() {
         if ($this->handle == null) {
-            throw new DriverException('Driver Handle not found. Make sure you call connect() first.');
+            $this->connect();
+            //throw new DriverException('Driver Handle not found. Make sure you call connect() first.');
         }
         return $this->handle;
     }
@@ -99,8 +111,7 @@ class PDODriver implements DriverInterface
     /**
      * @inheritDoc
      */
-    public function close()
-    {
+    public function close() {
         $this->handle = null;
         return true;
     }
@@ -108,8 +119,7 @@ class PDODriver implements DriverInterface
     /**
      * @inheritDoc
      */
-    public function reset()
-    {
+    public function reset() {
         $this->handle = null;
         return $this->connect();
     }
@@ -120,8 +130,7 @@ class PDODriver implements DriverInterface
      * @return false|PDOStatement
      * @throws DriverException
      */
-    public function prepare(string $query)
-    {
+    public function prepare(string $query) {
         $stmt = $this->handle->prepare($query);
         if ($stmt === false) {
             throw new DriverException('Error trying to prepare statement - ' . $this->handle->error);
@@ -133,20 +142,22 @@ class PDODriver implements DriverInterface
      * @inheritDoc
      * @param PDOStatement $stmt
      */
-    public function bind($stmt, &...$params)
-    {
-        for ($i = 0; $i < count($params); $i++) {
-            if (is_string($params[$i])) {
-                $type = PDO::PARAM_STR;
-            } elseif (is_int($params[$i])) {
-                $type = PDO::PARAM_INT;
-            } elseif (is_bool($params[$i])) {
-                $type = PDO::PARAM_BOOL;
-            } else {
-                $type = PDO::PARAM_STR;
+    public function bind($stmt, &...$params) {
+        foreach ($params as $ix => $val) {
+            switch (gettype($val)) {
+                case 'string' :
+                    $type = PDO::PARAM_STR;
+                    break;
+                case 'integer' :
+                    $type = PDO::PARAM_INT;
+                    break;
+                case 'boolean':
+                    $type = PDO::PARAM_BOOL;
+                    break;
+                default:
+                    $type = PDO::PARAM_STR;
             }
-
-            $stmt->bindValue($i + 1, $params[$i], $type);
+            $stmt->bindValue($ix + 1, $val, $type);
         }
         return $stmt;
     }
@@ -158,8 +169,7 @@ class PDODriver implements DriverInterface
      * @param bool $fetch Fetch Results
      * @throws DriverException
      */
-    public function execute($stmt, $close = true, $fetch = false)
-    {
+    public function execute($stmt, $close = true, $fetch = false) {
         try {
             $stmt->execute();
             if ($fetch) {
@@ -182,8 +192,7 @@ class PDODriver implements DriverInterface
      * @inheritDoc
      * @throws DriverException
      */
-    public function query(string $query)
-    {
+    public function query(string $query) {
         try {
             $stmt = $this->handle->query($query);
             try {
@@ -198,9 +207,9 @@ class PDODriver implements DriverInterface
                     $result = true;
                 } else {
                     throw new DriverException(
-                        $PDOException->getMessage(),
-                        $PDOException->getCode(),
-                        $PDOException->getPrevious()
+                                    $PDOException->getMessage(),
+                                    $PDOException->getCode(),
+                                    $PDOException->getPrevious()
                     );
                 }
             }
@@ -219,8 +228,7 @@ class PDODriver implements DriverInterface
      *
      * @inheritDoc
      */
-    public function exec(string $sql)
-    {
+    public function exec(string $sql) {
         try {
             $stmt = $this->handle->prepare($sql);
             $result = $stmt->execute();
@@ -232,14 +240,12 @@ class PDODriver implements DriverInterface
         }
     }
 
-
     /**
      * @param bool|int|array $result
      * @return array|bool
      * @throws DriverException
      */
-    protected function getResults($result)
-    {
+    protected function getResults($result) {
         if (is_bool($result) || is_int($result) || is_array($result)) {
             return $result;
         }
@@ -249,8 +255,7 @@ class PDODriver implements DriverInterface
     /**
      * @inheritDoc
      */
-    public function escape(string $value)
-    {
+    public function escape(string $value) {
         $escaped = $this->handle->quote($value);
         return preg_replace('/^\'(.*)\'$/', '$1', $escaped); //remove surrounding quote
     }
@@ -258,16 +263,95 @@ class PDODriver implements DriverInterface
     /**
      * @inheritDoc
      */
-    public function getLastInsertId()
-    {
+    public function getLastInsertId() {
         return $this->handle->lastInsertId();
     }
 
     /**
      * @inheritDoc
      */
-    public function getProcessor()
-    {
+    public function getProcessor() {
         return $this->processor;
+    }
+
+    /**
+     * For changing on the fly 
+     * - Mysql returns metadata field names in mixed case.
+     * PDO::CASE_LOWER or PDO:CASE_NATURAL
+     * @param int $value
+     */
+    public function setCaseAttribute(int $value) {
+        $this->handle()->setAttribute(PDO::ATTR_CASE, $value);
+    }
+
+    /**
+     * PDO::CASE_LOWER,  PDO::CASE_UPPER, PDO:CASE_NATURAL;
+     * return current setting
+     * 
+     */
+    public function getCaseAttribute(): int {
+        return $this->handle()->getAttribute(PDO::ATTR_CASE);
+    }
+
+    /**
+     * 
+     * @param PDOStatement $sth
+     * @param int $mode
+     * @return array
+     */
+    public function fetchAllRows($sth, int $mode = \PDO::FETCH_ASSOC): array {
+        if (!empty($sth)) {
+            return $sth->fetchAll($mode);
+        } else {
+            return [];
+        }
+    }
+
+    public function getTableNames(): array {  
+    }
+
+    /**
+     * Execute a raw SQL query on the database.
+     *
+     * @param string $sql Raw SQL string to execute.
+     * @param array &$values Optional array of bind values
+     * @return mixed A result set object
+     */
+    public function prepareQuery($sql, array $values = null, array $bindTypes = null) : object {
+        $handle = $this->handle;
+        if ($this->logging) {
+            $this->logger->log($sql);
+            if ($values)
+                $this->logger->log($values);
+        }
+
+        $this->lastsql = $sql;
+
+        try {
+            if (!($sth = $handle->prepare($sql)))
+                throw new DriverException($this);
+        } catch (PDOException $e) {
+            throw new DriverException($this);
+        }
+
+        if (is_array($values) && !array_key_exists(0, $values)) {
+            // assume named parameters
+            foreach ($values as $key => $val) {
+                $btype = !empty($bindTypes) ? $bindTypes[$key] : (is_int($val) ? \PDO::BIND_INT : \PDO::BIND_STR);
+                $sth->bindValue($key, $val, $btype);
+            }
+            $evalues = null;
+        } else {
+            // assume maybe positional parameters
+            $evalues = $values;
+        }
+
+        try {
+            if (!$sth->execute($evalues))
+                throw new DriverException($this);
+        } catch (PDOException $e) {
+            throw new DriverException($e);
+        }
+        return $sth;
     }
 }

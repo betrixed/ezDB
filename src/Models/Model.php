@@ -102,6 +102,15 @@ abstract class Model
     public static function __callStatic($method, $parameters)
     {
         $instance = new static();
+        
+        if (str_starts_with($method,"findFirst")) {
+            $by = substr($method,9);
+            if (str_starts_with($by,"By")) {
+                $fname = substr($by,2);
+
+                return $instance->where($fname, '=', $parameters[0])->first();
+            }
+        }
         return $instance->getBuilder()
             ->setModel($instance)
             ->$method(...$parameters);
